@@ -73,12 +73,30 @@ class Dns
     }
 
     /**
+     * @param  mixed  ...$types
+     *
+     * @return string
+     */
+    public function getShortRecord(...$types)
+    {
+        $types = $this->determineTypes($types);
+
+        $types = count($types)
+            ? $types
+            : $this->recordTypes;
+
+        $dnsRecords = array_map([$this, 'getRecordsOfTypeShort'], $types);
+
+        return implode('', array_filter($dnsRecords));
+    }
+
+    /**
      * @throws InvalidArgument
      */
     protected function determineTypes(array $types): array
     {
-        $types = is_array($types[0] ?? null)
-            ? $types[0]
+        $types = is_array($types[ 0 ] ?? null)
+            ? $types[ 0 ]
             : $types;
 
         $types = array_map('strtoupper', $types);
@@ -122,11 +140,37 @@ class Dns
 
         $process->run();
 
-        if (! $process->isSuccessful()) {
+        if ( ! $process->isSuccessful()) {
             throw CouldNotFetchDns::digReturnedWithError(trim($process->getErrorOutput()));
         }
 
         return $process->getOutput();
+    }
+
+    protected function getRecordsOfTypeShort(
+        string $type
+    ) {
+        $nameserverPart = $this->getSpecificNameserverPart();
+
+        $command = array_filter([
+            'dig',
+            $type,
+            $nameserverPart,
+            $this->domain,
+            '+short',
+            '+noall',
+            '+answer',
+        ]);
+
+        $process = new Process($command);
+
+        $process->run();
+
+        if ( ! $process->isSuccessful()) {
+            throw CouldNotFetchDns::digReturnedWithError(trim($process->getErrorOutput()));
+        }
+
+        return trim($process->getOutput());
     }
 
     protected function getSpecificNameserverPart(): ?string
